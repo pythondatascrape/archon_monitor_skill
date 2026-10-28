@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Wait until no coding-loop run of a project is running, then print the project's runs and exit.
+"""Wait until no coding-loop run of a project is running (or, with --until running, until one is), then print the project's runs and exit.
 
-Exit 0 when the runs stopped (paused, failed, completed or none left); a transient status failure
-is retried, never taken as a change. Exit 1 on --timeout.
+Exit 0 when the runs stopped (paused, failed, completed or none left), or with --until running when
+a run of the project is running again (only the running ones are printed); a transient status
+failure is retried, never taken as a change. Exit 1 on --timeout.
 """
 from __future__ import annotations
 
@@ -37,6 +38,8 @@ def runs(status_cmd: list[str], project: Path) -> list[dict] | None:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("project", nargs="?", default=".")
+    ap.add_argument("--until", choices=("stopped", "running"), default="stopped",
+                    help="wait for the runs to stop (default) or for a run to start again")
     ap.add_argument("--interval", type=float, default=30, help="seconds between checks")
     ap.add_argument("--settle", type=float, default=60, help="seconds to wait first, so a just-sent answer is picked up")
     ap.add_argument("--timeout", type=float, default=0, help="give up after this many seconds (0: never)")
@@ -47,12 +50,15 @@ def main() -> int:
     time.sleep(a.settle)
     while True:
         found = runs(status_cmd, project)
-        if found is not None and not any(r.get("status") == "running" for r in found):
+        running = [r for r in found or [] if r.get("status") == "running"]
+        if a.until == "running" and running:
+            found = running
+        if found is not None and (bool(running) == (a.until == "running")):
             stamp = time.strftime("%H:%M")
             print(f"{stamp} " + ("; ".join(f"{r.get('id')} {r.get('status')}" for r in found) or "no runs"))
             return 0
         if a.timeout and time.monotonic() - start > a.timeout:
-            print("timeout: still running", file=sys.stderr)
+            print("timeout: still " + ("stopped" if a.until == "running" else "running"), file=sys.stderr)
             return 1
         time.sleep(a.interval)
 

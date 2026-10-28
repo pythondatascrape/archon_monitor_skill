@@ -6,6 +6,7 @@ description: Watch an Archon coding-loop run and answer its pauses for the owner
 Scripts take the project folder (default `.`); state is read from `$ARCHON_HOME` (default `~/.archon`).
 
 - `python3 ${CLAUDE_SKILL_DIR}/scripts/watch.py <project>`: waits until the project's coding-loop run stops running, then prints it. Run it in the background; it returns when there is a pause to handle.
+- `python3 ${CLAUDE_SKILL_DIR}/scripts/watch.py <project> --until running`: after a run failed or was stopped with nothing waiting, waits until a run of the project starts again, then prints it. Then carry on watching that run.
 - `python3 ${CLAUDE_SKILL_DIR}/scripts/pending.py <project>`: the open question, each proposed rule with the label the loop accepts (`1a`, `1b`, `2a` ...), and the questions asked ahead for later tasks, numbered on. Exit 1 when nothing is waiting.
 - `python3 ${CLAUDE_SKILL_DIR}/scripts/precheck.py <project> --reply <file>`: runs the loop's own answer handling on a scratch copy of the state. Exit 0 `ACCEPTED` (with a note naming tasks whose questions asked ahead were left for their turn), exit 1 `REFUSED: <the reason>`.
 - `python3 ${CLAUDE_SKILL_DIR}/scripts/amend.py <project> --phase <xx> --task <id> --file <path> [--file ...]`: adds files a task may change to its sub-phase plan.

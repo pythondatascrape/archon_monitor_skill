@@ -125,3 +125,23 @@ def test_watch_times_out_while_running(world, tmp_path):
     r = run("watch.py", proj, "--settle", "0", "--interval", "0.01", "--timeout", "0.2", cwd=world["project"],
             env={"ARCHON_STATUS_CMD": cmd})
     assert r.returncode == 1
+
+
+def test_watch_until_running_returns_when_a_run_starts_again(world, tmp_path):
+    proj = str(world["project"].resolve())
+    failed = [{"id": "r1", "workflow_name": "coding-loop", "status": "failed", "working_path": proj}]
+    other = [{"id": "x", "workflow_name": "coding-loop", "status": "running", "working_path": "/elsewhere"}]
+    started = failed + [{"id": "r2", "workflow_name": "coding-loop", "status": "running", "working_path": proj}]
+    cmd = fake_status(tmp_path, [failed + other, "not json", started])
+    r = run("watch.py", proj, "--until", "running", "--settle", "0", "--interval", "0.01", cwd=world["project"],
+            env={"ARCHON_STATUS_CMD": cmd})
+    assert r.returncode == 0, r.stderr
+    assert "r2 running" in r.stdout and "r1" not in r.stdout and "x" not in r.stdout.split(" ", 1)[1]
+
+
+def test_watch_until_running_times_out_while_stopped(world, tmp_path):
+    proj = str(world["project"].resolve())
+    cmd = fake_status(tmp_path, [[{"id": "r1", "workflow_name": "coding-loop", "status": "failed", "working_path": proj}]])
+    r = run("watch.py", proj, "--until", "running", "--settle", "0", "--interval", "0.01", "--timeout", "0.2",
+            cwd=world["project"], env={"ARCHON_STATUS_CMD": cmd})
+    assert r.returncode == 1
