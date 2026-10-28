@@ -50,3 +50,35 @@ def proposal_labels(clarification: dict) -> list[tuple[str, dict]]:
         for j, rule in enumerate(rules):
             out.append((f"{i}{chr(97 + j)}", rule))
     return out
+
+
+def asked_ahead(clarification: dict) -> list[dict]:
+    """Questions coders working ahead asked for later tasks, numbered on after this task's own, as
+    the loop shows them. A reply numbered through them gives each later task its answer, so the
+    loop can code it ahead again."""
+    n = len(clarification.get("questions") or [])
+    joined = [(t, q) for t, qs in (clarification.get("ahead") or {}).items() for q in qs]
+    return [{"number": i, "task": t, "question": q} for i, (t, q) in enumerate(joined, n + 1)]
+
+
+NUMBERED = re.compile(r"(?m)^[ \t]*(\d+)[.)][ \t]")  # how the loop finds a reply's numbered answers
+
+
+def numbering_problem(clarification: dict, text: str) -> tuple[str, str]:
+    """('', note) when the reply is numbered as the loop splits it, else (problem, ''). With
+    questions asked ahead the loop takes 1..own (they wait for their turn, named in note) or
+    1..own+ahead (each later task gets its part), or an unnumbered reply (all of it is this task's);
+    numbering that stops between the two is refused."""
+    ahead = asked_ahead(clarification)
+    if not ahead:
+        return "", ""
+    own = len(clarification.get("questions") or [])
+    total = own + len(ahead)
+    got = [int(m.group(1)) for m in NUMBERED.finditer(text)]
+    if got == list(range(1, total + 1)):
+        return "", ""
+    if got in ([], list(range(1, own + 1))):  # unnumbered: the loop gives it all to this task
+        return "", "asked ahead, left for their turn: " + ", ".join(dict.fromkeys(a["task"] for a in ahead))
+    shown = f"1-{max(got)}" if got else "no numbers"
+    return (f"number the reply 1-{own} (this task) or 1-{total} (with the questions asked ahead), "
+            f"got {shown}"), ""

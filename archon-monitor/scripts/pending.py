@@ -2,7 +2,7 @@
 """Print what the paused coding loop is waiting for: the open question with each proposed rule's label.
 
 Exit 0 with the question (or approval request) printed; exit 1 when nothing is waiting.
---json prints {"phase", "state", "task", "kind", "origin", "reason", "questions", "proposals": [{"label", ...}], "ahead"}.
+--json prints {"phase", "state", "task", "kind", "origin", "reason", "questions", "proposals": [{"label", ...}], "ahead": [{"number", "task", "question"}]}.
 """
 from __future__ import annotations
 
@@ -27,12 +27,12 @@ def main() -> int:
     c = s.get("clarification")
     if s.get("state") == "AWAITING_HUMAN_APPROVAL":
         out = {"phase": _loop.phase_of(pdir), "state": s["state"], "task": None, "kind": "approval",
-               "questions": [], "proposals": [], "ahead": {}}
+               "questions": [], "proposals": [], "ahead": []}
     elif s.get("state") == "AWAITING_CLARIFICATION" and c:
         out = {"phase": _loop.phase_of(pdir), "state": s["state"], "task": c.get("task"), "kind": c.get("kind"),
                "origin": c.get("origin"), "reason": c.get("reason"), "questions": c.get("questions", []),
                "proposals": [{"label": label, **rule} for label, rule in _loop.proposal_labels(c)],
-               "ahead": {t: len(q) for t, q in (c.get("ahead") or {}).items()}}
+               "ahead": _loop.asked_ahead(c)}
     else:
         print(f"phase {_loop.phase_of(pdir)}: nothing waiting (state {s.get('state')})")
         return 1
@@ -45,7 +45,9 @@ def main() -> int:
     for p in out["proposals"]:
         print(f"  {p['label']}  {p.get('file')} :: {p.get('function')} | {p.get('rule')}")
     if out["ahead"]:
-        print("asked ahead (answer optional): " + ", ".join(f"{t} ({n})" for t, n in out["ahead"].items()))
+        print("Asked ahead for later tasks (answer them numbered on, so those tasks can be coded ahead again):")
+        for q in out["ahead"]:
+            print(f"  {q['number']}. [{q['task']}] {q['question']}")
     return 0
 
 

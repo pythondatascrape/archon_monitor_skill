@@ -10,7 +10,37 @@ def test_pending_lists_questions_and_rule_labels(world):
     out = json.loads(r.stdout)
     assert (out["phase"], out["task"], out["kind"]) == ("07", "07.3", "coder")
     assert [p["label"] for p in out["proposals"]] == ["1a", "1b", "2a"]
-    assert out["ahead"] == {"07.4": 1}
+    assert out["ahead"] == [{"number": 3, "task": "07.4", "question": "a question"}]
+
+
+def test_pending_numbers_questions_asked_ahead_after_the_tasks_own(world):
+    r = run("pending.py", str(world["project"]), cwd=world["project"], env=world["env"])
+    assert r.returncode == 0 and "  3. [07.4] a question" in r.stdout
+
+
+def precheck(world, tmp_path, text):
+    reply = tmp_path / "reply.txt"
+    reply.write_text(text)
+    return run("precheck.py", str(world["project"]), "--reply", str(reply), cwd=world["project"], env=world["env"])
+
+
+def test_precheck_accepts_a_reply_numbered_through_the_questions_asked_ahead(world, tmp_path):
+    r = precheck(world, tmp_path, "1. Column c.\n1a OK\n1b OK\n2. Zero.\n2a OK\n3. Round half up.\n")
+    assert r.returncode == 0 and r.stdout.strip() == "ACCEPTED", r.stdout + r.stderr
+
+
+def test_precheck_marks_questions_asked_ahead_left_for_their_turn(world, tmp_path):
+    r = precheck(world, tmp_path, "1. Column c.\n1a OK\n1b OK\n2. Zero.\n2a OK\n")
+    assert r.returncode == 0 and r.stdout.strip() == "ACCEPTED (asked ahead, left for their turn: 07.4)"
+
+
+def test_precheck_refuses_a_reply_numbered_partway_through(world, tmp_path):
+    s = json.loads((world["phase"] / "state.json").read_text())
+    s["clarification"]["ahead"]["07.5"] = ["another"]
+    (world["phase"] / "state.json").write_text(json.dumps(s))
+    r = precheck(world, tmp_path, "1. Column c.\n1a OK\n1b OK\n2. Zero.\n2a OK\n3. Round half up.\n")
+    assert r.returncode == 1
+    assert "REFUSED: number the reply 1-2 (this task) or 1-4 (with the questions asked ahead), got 1-3" in r.stdout
 
 
 def test_pending_says_nothing_waiting(world):
@@ -26,7 +56,7 @@ def test_precheck_accepts_known_labels_and_leaves_real_state_alone(world, tmp_pa
     reply.write_text("1. Column c.\n1a OK\n1b OK\n2. Zero.\n2a OK\n")
     before = (world["phase"] / "state.json").read_text()
     r = run("precheck.py", str(world["project"]), "--reply", str(reply), cwd=world["project"], env=world["env"])
-    assert r.returncode == 0 and r.stdout.strip() == "ACCEPTED", r.stdout + r.stderr
+    assert r.returncode == 0 and r.stdout.startswith("ACCEPTED"), r.stdout + r.stderr
     assert (world["phase"] / "state.json").read_text() == before
     assert not list((world["home"] / "workflows").rglob("__pycache__"))
 

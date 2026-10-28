@@ -6,8 +6,8 @@ description: Watch an Archon coding-loop run and answer its pauses for the owner
 Scripts take the project folder (default `.`); state is read from `$ARCHON_HOME` (default `~/.archon`).
 
 - `python3 ${CLAUDE_SKILL_DIR}/scripts/watch.py <project>`: waits until the project's coding-loop run stops running, then prints it. Run it in the background; it returns when there is a pause to handle.
-- `python3 ${CLAUDE_SKILL_DIR}/scripts/pending.py <project>`: the open question, each proposed rule with the label the loop accepts (`1a`, `1b`, `2a` ...). Exit 1 when nothing is waiting.
-- `python3 ${CLAUDE_SKILL_DIR}/scripts/precheck.py <project> --reply <file>`: runs the loop's own answer handling on a scratch copy of the state. Exit 0 `ACCEPTED`, exit 1 `REFUSED: <the loop's reason>`.
+- `python3 ${CLAUDE_SKILL_DIR}/scripts/pending.py <project>`: the open question, each proposed rule with the label the loop accepts (`1a`, `1b`, `2a` ...), and the questions asked ahead for later tasks, numbered on. Exit 1 when nothing is waiting.
+- `python3 ${CLAUDE_SKILL_DIR}/scripts/precheck.py <project> --reply <file>`: runs the loop's own answer handling on a scratch copy of the state. Exit 0 `ACCEPTED` (with a note naming tasks whose questions asked ahead were left for their turn), exit 1 `REFUSED: <the reason>`.
 - `python3 ${CLAUDE_SKILL_DIR}/scripts/amend.py <project> --phase <xx> --task <id> --file <path> [--file ...]`: adds files a task may change to its sub-phase plan.
 - `python3 ${CLAUDE_SKILL_DIR}/scripts/log.py --log <file> --task <id> --title <line> --note <text> [--review]`: appends one decision to the log.
 - Send with the loop's own tool: `python3 $ARCHON_HOME/workflows/tasks/coding-loop/tools/answer.py <project> --phase <xx> --file <reply> [--amended]`. It waits for the controller and prints `ACCEPTED`.
@@ -22,7 +22,8 @@ Scripts take the project folder (default `.`); state is read from `$ARCHON_HOME`
 3. Write the reply to a file, one line per numbered question, then the proposal marks:
    - `1a OK` keeps a rule; `1a: <rule>` replaces it; `1a REJECT` drops it.
    - Mark only labels `pending.py` printed. A new label (for example `3b` when only `3a` exists) is refused.
-   - Questions asked ahead for later tasks are optional; leave them for their own turn.
+   - Answer the questions asked ahead for later tasks too: `pending.py` lists them numbered on after this task's own. One line each, numbered through to the last, grounded in that later task's sub-phase plan. Each later task gets its answer and is coded ahead again instead of waiting.
+   - Only when one of them cannot be grounded, number just this task's questions: all of them then wait for their own turn. `precheck.py` refuses numbering that stops partway.
 4. `precheck.py`; fix the reply until it prints `ACCEPTED`.
 5. Send with `answer.py` (with `--amended` after `amend.py`), then `log.py`, then `watch.py` again.
 

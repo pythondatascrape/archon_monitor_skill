@@ -4,7 +4,7 @@
 The real run is never touched: the state folder is copied, the controller is loaded from the
 installed workflow, and only its absorb_answer step runs. Plan files are read from the project, so
 an amendment saved there is checked too.
-Exit 0: ACCEPTED. Exit 1: REFUSED, with the loop's "Not accepted" reason. Exit 2: could not check.
+Exit 0: ACCEPTED (with a note when questions asked ahead are left for their turn). Exit 1: REFUSED, with the loop's "Not accepted" reason. Exit 2: could not check.
 """
 from __future__ import annotations
 
@@ -39,6 +39,10 @@ def main() -> int:
         print(f"cannot load the coding-loop controller from {shared}: {exc}", file=sys.stderr)
         return 2
     text = Path(a.reply).read_text(encoding="utf-8")
+    problem, note = _loop.numbering_problem(_loop.read_state(pdir).get("clarification") or {}, text)
+    if problem:
+        print(f"REFUSED: {problem}")
+        return 1
     with tempfile.TemporaryDirectory() as tmp:
         state = Path(tmp) / "state"
         copy = state / "coding-loop" / pdir.name
@@ -47,7 +51,7 @@ def main() -> int:
         ctl = Controller(project, _loop.phase_of(pdir), state, Path(tmp) / "art", "precheck")
         paused = ctl.absorb_answer(loop_core.parse_gate(json.dumps({"decision": a.decision, "text": text})))
     if not paused:
-        print("ACCEPTED")
+        print(f"ACCEPTED ({note})" if note else "ACCEPTED")
         return 0
     lines = paused.get("message", "").splitlines()
     print("REFUSED: " + next((ln for ln in lines if ln.startswith("Not accepted")), " ".join(lines[:3])))
