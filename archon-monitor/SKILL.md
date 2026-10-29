@@ -37,12 +37,14 @@ Scripts take the project folder (default `.`); state is read from `$ARCHON_HOME`
 - A changed rule from an earlier phase (security, visibility, retention): check every code path it touches first, then log the change with `--review`.
 - Never invent facts the code or plan does not hold (a version, a date, a host list). Say it is unrecorded, choose the safe default, and log it for review.
 
-## Out of attempts on a rule check (Jev)
+## A rule check (Jev) flag
 
-The rule check fails a task once per function and rule; a new or renamed function gets a fresh failure, which is how a task runs out of attempts without a real bug.
-- Read the flagged function. If it already satisfies the rule, the flag is a false alarm: make the check visible inside that function.
-- If there is a real gap (an uncaught error on malformed input, an unchecked path segment), fix just that.
-- Either way: change only the flagged function's body and docstring, add no new, renamed or split function, and add one test for the case. A repeat flag on the same function then goes to the adversarial review instead of failing the gate.
+Since 2026-10-29 the loop limits Jev itself: a standards flag (S-xx) never fails the gate, it goes
+to the adversarial review; a plan or answer rule fails a task once, and every later flag in that
+task goes to the review. The loop's message says this. So Jev alone cannot run a task out of
+attempts; an out-of-attempts pause is a test or check failure, answered as such.
+- Never answer a Jev flag by asking for another attempt, a rule change or an exemption: the review decides.
+- If the coder asks whether a flag is real, read the flagged function. It already satisfies the rule: say so and to make the check visible in that function. A real gap (an uncaught error on malformed input, an unchecked path segment): fix just that function, add no new or renamed function, and add one test for the case.
 
 ## Logging
 
