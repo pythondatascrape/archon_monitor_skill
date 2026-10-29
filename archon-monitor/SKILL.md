@@ -9,7 +9,7 @@ Scripts take the project folder (default `.`); state is read from `$ARCHON_HOME`
 - `python3 ${CLAUDE_SKILL_DIR}/scripts/watch.py <project> --until running`: after a run failed or was stopped with nothing waiting, waits until a run of the project starts again, then prints it. Then carry on watching that run.
 - `python3 ${CLAUDE_SKILL_DIR}/scripts/pending.py <project>`: the open question, each proposed rule with the label the loop accepts (`1a`, `1b`, `2a` ...), and the questions asked ahead for later tasks, numbered on. Exit 1 when nothing is waiting.
 - `python3 ${CLAUDE_SKILL_DIR}/scripts/precheck.py <project> --reply <file>`: runs the loop's own answer handling on a scratch copy of the state. Exit 0 `ACCEPTED` (with a note naming tasks whose questions asked ahead were left for their turn), exit 1 `REFUSED: <the reason>`.
-- `python3 ${CLAUDE_SKILL_DIR}/scripts/amend.py <project> --phase <xx> --task <id> --file <path> [--file ...]`: adds files a task may change to its sub-phase plan.
+- `python3 ${CLAUDE_SKILL_DIR}/scripts/amend.py <project> --phase <xx> --task <id> [--file <path> ...] [--expect-failure <text> [--test <name> ...]]`: adds files a task may change to its sub-phase plan, and/or sets what its tests are expected to fail with.
 - `python3 ${CLAUDE_SKILL_DIR}/scripts/log.py --log <file> --task <id> --title <line> --note <text> [--review]`: appends one decision to the log.
 - Send with the loop's own tool: `python3 $ARCHON_HOME/workflows/tasks/coding-loop/tools/answer.py <project> --phase <xx> --file <reply> [--amended]`. It waits for the controller and prints `ACCEPTED`.
 
@@ -33,6 +33,7 @@ Scripts take the project folder (default `.`); state is read from `$ARCHON_HOME`
 - The phase document, the approved design and earlier answers win over a coder's proposal. Correct a proposal that drifts from them, and say which earlier answer you follow.
 - Prefer the smallest change that keeps existing behaviour and tests valid. When an existing test pins a function's arguments or output, add optional arguments, or put new work beside the pinned function instead of inside it.
 - A task needs a file outside its list (a caller to wire, a test that pins old behaviour): amend the plan with `amend.py` and name the exact parts it may change. Search the suite for every test that depends on the old behaviour, so the question does not come back.
+- A plan the loop's own gate can never accept is yours to fix, never the owner's: amend it and answer. Example (phase 13, 2026-10-29): a Go test task expected "undefined: ClaimJaccard", a build error, but RED must fail at an assertion. Fix: give the test task the source file too (`--file`) for a stub that returns zero values, set `--expect-failure` to the assertion's text (e.g. `want`), and tell the coder to write the stub; the implementing task fills it in. Log it with `--review`.
 - Something the plan promises but no task builds (a feature that is defined but never called or scheduled): treat it as a gap. Give it to the current task with an amendment, and log it for review.
 - A changed rule from an earlier phase (security, visibility, retention): check every code path it touches first, then log the change with `--review`.
 - Never invent facts the code or plan does not hold (a version, a date, a host list). Say it is unrecorded, choose the safe default, and log it for review.

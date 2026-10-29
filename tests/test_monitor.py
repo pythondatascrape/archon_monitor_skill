@@ -83,6 +83,30 @@ def test_amend_unknown_task_fails(world):
     assert r.returncode == 1
 
 
+def test_amend_sets_a_tests_expected_failure(world):
+    """Phase 13 (2026-10-29): a plan expected a build error ("undefined: X") where the loop needs an
+    assertion failure; swarzy could only add files, so it left a fixable plan to the owner."""
+    plan = world["project"] / "docs" / "subtask" / "phase-07" / "07.03.json"
+    doc = json.loads(plan.read_text())
+    doc["tasks"][0]["tests"] = [{"name": "test_a", "file": "tests/test_a.py", "expect_failure": "undefined: X"},
+                                {"name": "test_b", "file": "tests/test_a.py", "expect_failure": "undefined: X"}]
+    plan.write_text(json.dumps(doc, indent=2) + "\n")
+    r = run("amend.py", str(world["project"]), "--phase", "07", "--task", "07.3", "--file", "src/x.py",
+            "--expect-failure", "want", cwd=world["project"])
+    assert r.returncode == 0, r.stderr
+    t = json.loads(plan.read_text())["tasks"][0]
+    assert [x["expect_failure"] for x in t["tests"]] == ["want", "want"] and "src/x.py" in t["files"]
+    r = run("amend.py", str(world["project"]), "--phase", "07", "--task", "07.3", "--test", "test_b",
+            "--expect-failure", "assert", cwd=world["project"])
+    assert r.returncode == 0, r.stderr
+    assert [x["expect_failure"] for x in json.loads(plan.read_text())["tasks"][0]["tests"]] == ["want", "assert"]
+
+
+def test_amend_needs_a_change(world):
+    r = run("amend.py", str(world["project"]), "--phase", "07", "--task", "07.3", cwd=world["project"])
+    assert r.returncode == 2
+
+
 def test_log_appends_entries_marked_for_review(tmp_path):
     log = tmp_path / "logs" / "night.md"
     run("log.py", "--log", str(log), "--task", "07.3", "--title", "migration", "--note", "kept 1a", cwd=tmp_path)
