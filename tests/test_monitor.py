@@ -119,6 +119,38 @@ def test_amend_finds_a_task_in_any_sub_phase_and_unfreezes_only_the_granted_file
     assert t["frozen"] == ["docs/*", "pkg/a_test.py", "pkg/c_test.py"]
 
 
+def test_amend_changes_and_drops_a_tasks_commands(world):
+    """Phase 13 (2026-10-29): 13.7's evidence command ran every package at once (a timing check fails
+    under that load) and its `make vuln` failed on a Go flaw already failing at phase start; amend.py
+    could not change either, so swarzy left a fixable plan to the owner."""
+    plan = world["project"] / "docs" / "subtask" / "phase-07" / "07.03.json"
+    doc = json.loads(plan.read_text())
+    doc["tasks"][0]["commands"] = [{"command": "go test -json ./... > out.jsonl", "source": "doc"},
+                                   {"command": "make vuln", "source": "doc"}, "make check"]
+    plan.write_text(json.dumps(doc, indent=2) + "\n")
+    r = run("amend.py", str(world["project"]), "--phase", "07", "--task", "07.3",
+            "--command", "go test -json ./... > out.jsonl", "go test -p 1 -json ./... > out.jsonl",
+            "--drop-command", "make vuln", cwd=world["project"])
+    assert r.returncode == 0, r.stderr
+    t = json.loads(plan.read_text())["tasks"][0]
+    assert t["commands"] == [{"command": "go test -p 1 -json ./... > out.jsonl", "source": "doc"}, "make check"]
+    assert t["files"] == ["src/a.py"]
+    r = run("amend.py", str(world["project"]), "--phase", "07", "--task", "07.3", "--drop-command", "make lint",
+            cwd=world["project"])
+    assert r.returncode == 1 and "make lint" in r.stderr
+
+
+def test_pending_lists_checks_that_already_failed_at_phase_start(world):
+    """The loop records the checks that failed before the phase changed anything; a failure there is
+    not the task's doing, so swarzy must see it to drop the check instead of escalating."""
+    (world["phase"].parent / "start-checks.json").write_text(json.dumps({
+        "old": {"failed": ["`make lint` exit 1: x"], "at": 1.0},
+        "new": {"failed": ["`make vuln` exit 2: crypto/x509@go1.27.2 ..."], "at": 2.0}}))
+    r = run("pending.py", str(world["project"]), "--json", cwd=world["project"], env=world["env"])
+    assert r.returncode == 0, r.stderr
+    assert json.loads(r.stdout)["phase_start_failures"] == ["`make vuln` exit 2: crypto/x509@go1.27.2 ..."]
+
+
 def test_amend_needs_a_change(world):
     r = run("amend.py", str(world["project"]), "--phase", "07", "--task", "07.3", cwd=world["project"])
     assert r.returncode == 2

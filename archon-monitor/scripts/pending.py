@@ -2,7 +2,8 @@
 """Print what the paused coding loop is waiting for: the open question with each proposed rule's label.
 
 Exit 0 with the question (or approval request) printed; exit 1 when nothing is waiting.
---json prints {"phase", "state", "task", "kind", "origin", "reason", "questions", "proposals": [{"label", ...}], "ahead": [{"number", "task", "question"}]}.
+--json prints {"phase", "state", "task", "kind", "origin", "reason", "questions", "proposals": [{"label", ...}], "ahead": [{"number", "task", "question"}],
+"phase_start_failures": [the checks that already failed before the phase changed anything]}.
 """
 from __future__ import annotations
 
@@ -36,6 +37,7 @@ def main() -> int:
     else:
         print(f"phase {_loop.phase_of(pdir)}: nothing waiting (state {s.get('state')})")
         return 1
+    out["phase_start_failures"] = _loop.phase_start_failures(Path(a.project), a.state_dir)
     if a.json:
         print(json.dumps(out, indent=1))
         return 0
@@ -44,6 +46,8 @@ def main() -> int:
         print(f"Q: {q}")
     for p in out["proposals"]:
         print(f"  {p['label']}  {p.get('file')} :: {p.get('function')} | {p.get('rule')}")
+    for f in out["phase_start_failures"]:
+        print(f"Already failing at phase start: {f}")
     if out["ahead"]:
         print("Asked ahead for later tasks (answer them numbered on, so those tasks can be coded ahead again):")
         for q in out["ahead"]:

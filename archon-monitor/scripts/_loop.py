@@ -34,6 +34,16 @@ def phase_dir(project: Path, phase: str | None, override: str | None = None) -> 
     return found[-1].parent
 
 
+def phase_start_failures(project: Path, override: str | None = None) -> list[str]:
+    """The checks that failed in the loop's latest phase-start run (start-checks.json), before any task changed code."""
+    try:
+        records = json.loads((state_root(project, override) / "start-checks.json").read_text(encoding="utf-8"))
+        latest = max(records.values(), key=lambda r: r.get("at", 0))
+    except (OSError, ValueError, AttributeError):
+        return []
+    return [str(f)[:600] for f in latest.get("failed", [])]
+
+
 def phase_of(pdir: Path) -> str:
     match = re.fullmatch(r"phase-(.+)", pdir.name)
     return match.group(1) if match else ""
