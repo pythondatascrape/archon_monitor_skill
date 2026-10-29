@@ -102,6 +102,23 @@ def test_amend_sets_a_tests_expected_failure(world):
     assert [x["expect_failure"] for x in json.loads(plan.read_text())["tasks"][0]["tests"]] == ["want", "assert"]
 
 
+def test_amend_finds_a_task_in_any_sub_phase_and_unfreezes_only_the_granted_file(world):
+    """Phase 13 (2026-10-29): task 13.5 lives in 13.04.json, not 13.05.json, so amend.py found no
+    plan; and the granted file matched the task's frozen 'internal/retrieval/*_test.go', which wins."""
+    root = world["project"]
+    for f in ("pkg/a_test.py", "pkg/b_test.py", "pkg/c_test.py"):
+        (root / f).parent.mkdir(parents=True, exist_ok=True)
+        (root / f).write_text("x\n")
+    sub = root / "docs" / "subtask" / "phase-07" / "07.02.json"
+    sub.write_text(json.dumps({"tasks": [{"task_id": "07.5", "files": ["pkg/a.py"],
+                                          "frozen": ["docs/*", "pkg/*_test.py"]}]}, indent=2) + "\n")
+    r = run("amend.py", str(root), "--phase", "07", "--task", "07.5", "--file", "pkg/b_test.py", cwd=root)
+    assert r.returncode == 0, r.stderr
+    t = json.loads(sub.read_text())["tasks"][0]
+    assert t["files"] == ["pkg/a.py", "pkg/b_test.py"]
+    assert t["frozen"] == ["docs/*", "pkg/a_test.py", "pkg/c_test.py"]
+
+
 def test_amend_needs_a_change(world):
     r = run("amend.py", str(world["project"]), "--phase", "07", "--task", "07.3", cwd=world["project"])
     assert r.returncode == 2

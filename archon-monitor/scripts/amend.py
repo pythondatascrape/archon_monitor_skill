@@ -10,14 +10,39 @@ Exit 0 when saved, 1 when the plan, task or test is not found, 2 when nothing is
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import json
+import subprocess
 import sys
 from pathlib import Path
 
 
 def plan_path(project: Path, phase: str, task: str) -> Path:
-    major, _, minor = task.partition(".")
-    return project / "docs" / "subtask" / f"phase-{phase}" / f"{major}.{int(minor):02d}.json"
+    """The sub-phase plan that holds the task (13.5 can be in 13.04.json, not 13.05.json)."""
+    folder = project / "docs" / "subtask" / f"phase-{phase}"
+    for path in sorted(folder.glob("*.json")):
+        try:
+            if any(t.get("task_id") == task for t in json.loads(path.read_text(encoding="utf-8")).get("tasks", [])):
+                return path
+        except (ValueError, AttributeError):
+            continue
+    return folder / f"{task}.json"
+
+
+def unfreeze(project: Path, frozen: list, granted: str) -> list:
+    """Frozen wins over files in the loop: a glob that covers a granted file becomes the files it
+    covers today, less the granted one, so everything else stays frozen."""
+    out = []
+    tracked = subprocess.run(["git", "ls-files"], cwd=project, capture_output=True, text=True).stdout.split()
+    on_disk = {str(p.relative_to(project)) for p in project.rglob("*") if p.is_file() and ".git" not in p.parts}
+    for pattern in frozen:
+        if pattern == granted:
+            continue
+        if any(c in pattern for c in "*?[") and fnmatch.fnmatch(granted, pattern):
+            out += sorted(f for f in set(tracked) | on_disk if fnmatch.fnmatch(f, pattern) and f != granted)
+        else:
+            out.append(pattern)
+    return out
 
 
 def main() -> int:
@@ -44,6 +69,7 @@ def main() -> int:
     for f in a.files:
         if f not in task["files"]:
             task["files"].append(f)
+        task["frozen"] = unfreeze(Path(a.project).resolve(), task.get("frozen", []), f)
     if a.expect_failure is not None:
         chosen = [t for t in task.get("tests", []) if not a.tests or t.get("name") in a.tests]
         missing = set(a.tests) - {t.get("name") for t in chosen}
